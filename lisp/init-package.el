@@ -102,6 +102,10 @@
 (use-package diminish)
 (use-package bind-key)
 
+;; Auto install system packages
+(use-package use-package-ensure-system-package
+  :config (setq async-shell-command-buffer 'new-buffer))
+
 ;; Initialization benchmark
 (when centaur-benchmark
   (use-package benchmark-init

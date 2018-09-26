@@ -38,7 +38,7 @@
 ;; Speed up startup
 (defvar default-file-name-handler-alist file-name-handler-alist)
 (setq file-name-handler-alist nil)
-(setq gc-cons-threshold 30000000)
+(setq gc-cons-threshold 80000000)
 (add-hook 'emacs-startup-hook
           (lambda ()
             "Restore defalut values after init."
@@ -93,9 +93,9 @@
 (when centaur-lsp (require 'init-lsp))
 
 (require 'init-emacs-lisp)
-(require 'init-c)
-(require 'init-go)
-(require 'init-python)
+;; (require 'init-c)
+;; ( require 'init-go)
+;; (require 'init-python)
 (require 'init-ruby)
 (require 'init-web)
 (require 'init-prog)

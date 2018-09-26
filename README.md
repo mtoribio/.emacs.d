@@ -179,17 +179,24 @@ For the personal configurations, you could put to `~/.emacs.d/custom-post.el`.
       [here](https://github.com/cquery-project/cquery/releases).
     - Rust: `rustup component add rls-preview rust-analysis rust-src`
     - Java:
-        ```shell
-        wget http://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz
-        tar jdt-language-server-latest.tar.gz -C ~/.emacs.d/eclipse.jdt.ls/server/
-        ```
+      ``` shell
+      wget http://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz
+      tar jdt-language-server-latest.tar.gz -C ~/.emacs.d/eclipse.jdt.ls/server/
+      ```
     - PHP: refer to the [installation
       guide](https://github.com/felixfbecker/php-language-server#installation).
-      ```shell
-        composer require felixfbecker/language-server
-        composer run-script --working-dir=vendor/felixfbecker/language-server parse-stubs
-        ```
+      ``` shell
+      composer require felixfbecker/language-server
+      composer run-script --working-dir=vendor/felixfbecker/language-server parse-stubs
+      ```
 
 1. How to enable `plantuml` in `org-mode`?
 
     Put `(setq org-plantuml-jar-path "<path of plantumx.x.x.jar>")` in `custom.el`.
+
+1. Why the Emacs environment variables and `exec-path` are different between GUI
+   and terminal?
+
+    Please refer to #33. You should instead set environment variables in startup
+    files like .profile, .bash_profile or .zshenv, then `Centaur Emacs` is able
+    to recoginze and import the environment variables.
