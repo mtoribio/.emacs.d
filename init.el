@@ -93,9 +93,9 @@
 (when centaur-lsp (require 'init-lsp))
 
 (require 'init-emacs-lisp)
-(require 'init-c)
-(require 'init-go)
-(require 'init-python)
+;; (require 'init-c)
+;; ( require 'init-go)
+;; (require 'init-python)
 (require 'init-ruby)
 (require 'init-web)
 (require 'init-prog)
