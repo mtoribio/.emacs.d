@@ -1,6 +1,6 @@
 ;; init-python.el --- Initialize python configurations.	-*- lexical-binding: t -*-
 
-;; Copyright (C) 2018 Vincent Zhang
+;; Copyright (C) 2019 Vincent Zhang
 
 ;; Author: Vincent Zhang <seagle0128@gmail.com>
 ;; URL: https://github.com/seagle0128/.emacs.d
@@ -35,51 +35,36 @@
   (require 'init-custom))
 
 ;; Python Mode
+;; Install:
+;;   pip install pyflakes
+;;   pip install autopep8
 (use-package python
   :ensure nil
-  :defines gud-pdb-command-name pdb-path
-  :config
+  :hook (inferior-python-mode . (lambda ()
+                                  (process-query-on-exit-flag
+                                   (get-process "Python"))))
+  :init
+  ;; Default to Python 3. Prefer the versioned Python binaries since some
+  ;; systems stupidly make the unversioned one point at Python 2.
+  (when (and (executable-find "python3")
+             (string= python-shell-interpreter "python"))
+    (setq python-shell-interpreter "python3"))
+
   ;; Disable readline based native completion
   (setq python-shell-completion-native-enable nil)
-
-  (add-hook 'inferior-python-mode-hook
-            (lambda ()
-              (bind-key "C-c C-z" #'kill-buffer-and-window inferior-python-mode-map)
-              (process-query-on-exit-flag (get-process "Python"))))
-
-  ;; Pdb setup, note the python version
-  (setq pdb-path 'pdb
-        gud-pdb-command-name (symbol-name pdb-path))
-  (defadvice pdb (before gud-query-cmdline activate)
-    "Provide a better default command line when called interactively."
-    (interactive
-     (list (gud-query-cmdline
-            pdb-path
-            (file-name-nondirectory buffer-file-name)))))
+  :config
+  ;; Env vars
+  (with-eval-after-load 'exec-path-from-shell
+    (exec-path-from-shell-copy-env "PYTHONPATH"))
 
   ;; Live Coding in Python
   (use-package live-py-mode)
 
-  ;; Autopep8
-  (use-package py-autopep8
-    :hook (python-mode . py-autopep8-enable-on-save))
-
-  ;; Anaconda mode
-  (unless centaur-lsp
-    (use-package anaconda-mode
-      :defines anaconda-mode-localhost-address
-      :diminish anaconda-mode
-      :hook ((python-mode . anaconda-mode)
-             (python-mode . anaconda-eldoc-mode))
-      :config
-      ;; Workaround: https://github.com/proofit404/anaconda-mode#faq
-      (when sys/macp
-        (setq anaconda-mode-localhost-address "localhost"))
-      (use-package company-anaconda
-        :after company
-        :defines company-backends
-        :functions company-backend-with-yas
-        :init (cl-pushnew (company-backend-with-yas 'company-anaconda) company-backends)))))
+  ;; Format using YAPF
+  ;; Install: pip install yapf
+  (use-package yapfify
+    :diminish yapf-mode
+    :hook (python-mode . yapf-mode)))
 
 (provide 'init-python)
 

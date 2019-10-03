@@ -1,4 +1,4 @@
-;; init-yasnippet.el --- Initialize yasnippet configurations.	-*- lexical-binding: t -*-
+;; init-dart.el --- Initialize Dart configurations.	-*- lexical-binding: t -*-
 
 ;; Copyright (C) 2019 Vincent Zhang
 
@@ -25,17 +25,21 @@
 
 ;;; Commentary:
 ;;
-;; Yasnippet configurations.
+;; Dart configurations.
 ;;
 
 ;;; Code:
 
-(use-package yasnippet
-  :diminish yas-minor-mode
-  :hook (after-init . yas-global-mode)
-  :config (use-package yasnippet-snippets))
+;; Dart
+(use-package dart-mode
+  :defines (projectile-project-root-files-bottom-up)
+  :init (setq dart-format-on-save t)
+  :config
+  (with-eval-after-load "projectile"
+    (add-to-list 'projectile-project-root-files-bottom-up "pubspec.yaml")
+    (add-to-list 'projectile-project-root-files-bottom-up "BUILD")))
 
-(provide 'init-yasnippet)
+(provide 'init-dart)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; init-yasnippet.el ends here
+;;; init-dart.el ends here

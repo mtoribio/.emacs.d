@@ -1,4 +1,4 @@
-;; init-yasnippet.el --- Initialize yasnippet configurations.	-*- lexical-binding: t -*-
+;; init-rust.el --- Initialize Rust configurations.	-*- lexical-binding: t -*-
 
 ;; Copyright (C) 2019 Vincent Zhang
 
@@ -25,17 +25,26 @@
 
 ;;; Commentary:
 ;;
-;; Yasnippet configurations.
+;; Rust configurations.
 ;;
 
 ;;; Code:
 
-(use-package yasnippet
-  :diminish yas-minor-mode
-  :hook (after-init . yas-global-mode)
-  :config (use-package yasnippet-snippets))
+;; Rust
+(use-package rust-mode
+  :init (setq rust-format-on-save t)
+  :config
+  (use-package cargo
+    :diminish cargo-minor-mode
+    :hook (rust-mode . cargo-minor-mode)
+    :config
+    ;; To render buttons correctly, keep it at the last
+    (setq compilation-filter-hook
+          (append compilation-filter-hook '(cargo-process--add-errno-buttons)))))
 
-(provide 'init-yasnippet)
+(use-package rust-playground)
+
+(provide 'init-rust)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; init-yasnippet.el ends here
+;;; init-rust.el ends here

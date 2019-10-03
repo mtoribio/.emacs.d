@@ -1,6 +1,6 @@
 ;; init-go.el --- Initialize Golang configurations.	-*- lexical-binding: t -*-
 
-;; Copyright (C) 2018 Vincent Zhang
+;; Copyright (C) 2019 Vincent Zhang
 
 ;; Author: Vincent Zhang <seagle0128@gmail.com>
 ;; URL: https://github.com/seagle0128/.emacs.d
@@ -30,87 +30,96 @@
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'init-custom))
-
 ;; Golang
-;;
-;; Go packages:
-;; go get -u github.com/nsf/gocode
-;; go get -u github.com/rogpeppe/godef
-;; go get -u golang.org/x/tools/cmd/goimports
-;; go get -u golang.org/x/tools/cmd/guru
-;; go get -u golang.org/x/tools/cmd/gorename
-;; go get -u golang.org/x/tools/cmd/godoc
-;; go get -u github.com/derekparker/delve/cmd/dlv
-;; go get -u github.com/josharian/impl
-;; go get -u github.com/cweill/gotests/...
-;; go get -u github.com/fatih/gomodifytags
-;; go get -u github.com/davidrjenni/reftools/cmd/fillstruct
-;;
 (use-package go-mode
+  :functions (go-packages-gopkgs go-update-tools)
   :bind (:map go-mode-map
-              ([remap xref-find-definitions] . godef-jump)
-              ("C-c R" . go-remove-unused-imports)
-              ("<f1>" . godoc-at-point))
+         ([remap xref-find-definitions] . godef-jump)
+         ("C-c R" . go-remove-unused-imports)
+         ("<f1>" . godoc-at-point))
   :config
+  ;; Env vars
+  (with-eval-after-load 'exec-path-from-shell
+    (exec-path-from-shell-copy-envs '("GOPATH" "GO111MODULE" "GOPROXY")))
+
+  ;; Format with `goimports' if possible, otherwise using `gofmt'
+  (when (executable-find "goimports")
+    (setq gofmt-command "goimports"))
+  (add-hook 'before-save-hook #'gofmt-before-save)
+
+  ;; Install or update tools
+  (defvar go--tools '("golang.org/x/tools/gopls"
+                      "golang.org/x/tools/cmd/goimports"
+                      "golang.org/x/tools/cmd/gorename"
+
+                      ;; "github.com/rogpeppe/godef"
+                      "github.com/go-delve/delve/cmd/dlv"
+                      "github.com/josharian/impl"
+                      "github.com/cweill/gotests/..."
+                      "github.com/fatih/gomodifytags"
+                      "github.com/davidrjenni/reftools/cmd/fillstruct"
+                      "github.com/golangci/golangci-lint/cmd/golangci-lint")
+    "All necessary go tools.")
+
+  (defun go-update-tools ()
+    "Install or update go tools."
+    (interactive)
+    (unless (executable-find "go")
+      (user-error "Unable to find `go' in `exec-path'!"))
+
+    (message "Installing go tools...")
+    (dolist (pkg go--tools)
+      (set-process-sentinel (start-process "go-tools" "*go-tools*" "go" "get" "-u" "-v" pkg)
+                            (lambda (proc _)
+                              (let ((status (process-exit-status proc)))
+                                (if (= 0 status)
+                                    (message "Installed %s" pkg)
+                                  (message "Failed to install %s: %d" pkg status)))))))
+
+  (unless (executable-find "gopls")
+    (go-update-tools))
+
+  ;; Misc
   (use-package go-dlv)
   (use-package go-fill-struct)
   (use-package go-impl)
   (use-package go-rename)
-  (use-package golint)
-  (use-package govet)
+
+  ;; Install: go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
+  (use-package flycheck-golangci-lint
+    :if (executable-find "golangci-lint")
+    :after flycheck
+    :defines flycheck-disabled-checkers
+    :hook (go-mode . (lambda ()
+                       "Enable golangci-lint."
+                       (setq flycheck-disabled-checkers '(go-gofmt
+                                                          go-golint
+                                                          go-vet
+                                                          go-build
+                                                          go-test
+                                                          go-errcheck))
+                       (flycheck-golangci-lint-setup))))
 
   (use-package go-tag
     :bind (:map go-mode-map
-                ("C-c t" . go-tag-add)
-                ("C-c T" . go-tag-remove))
+           ("C-c t" . go-tag-add)
+           ("C-c T" . go-tag-remove))
     :config (setq go-tag-args (list "-transform" "camelcase")))
-
-  (use-package gotest
-    :bind (:map go-mode-map
-                ("C-c a" . go-test-current-project)
-                ("C-c m" . go-test-current-file)
-                ("C-c ." . go-test-current-test)
-                ("C-c x" . go-run)))
 
   (use-package go-gen-test
     :bind (:map go-mode-map
-                ("C-c C-g" . go-gen-test-dwim)))
+           ("C-c C-t" . go-gen-test-dwim)))
 
-  ;; LSP provides the functionalities.
-  ;; NOTE: `go-langserver' doesn't support Windows so far.
-  (unless centaur-lsp
-    ;; `goimports' or `gofmt'
-    (setq gofmt-command "goimports")
-    (add-hook 'before-save-hook #'gofmt-before-save)
+  (use-package gotest
+    :bind (:map go-mode-map
+           ("C-c a" . go-test-current-project)
+           ("C-c m" . go-test-current-file)
+           ("C-c ." . go-test-current-test)
+           ("C-c x" . go-run))))
 
-    ;; Go add-ons for Projectile
-    ;; Run: M-x `go-projectile-install-tools'
-    (with-eval-after-load 'projectile
-      (use-package go-projectile
-        :commands (go-projectile-mode go-projectile-switch-project)
-        :hook ((go-mode . go-projectile-mode)
-               (projectile-after-switch-project . go-projectile-switch-project))))
-
-    (use-package go-eldoc
-      :hook (go-mode . go-eldoc-setup))
-
-    (use-package go-guru
-      :bind (:map go-mode-map
-                  ;; ([remap xref-find-definitions] . go-guru-definition)
-                  ([remap xref-find-references] . go-guru-referrers)))
-
-    (with-eval-after-load 'company
-      (use-package company-go
-        :defines company-backends
-        :functions company-backend-with-yas
-        :init (cl-pushnew (company-backend-with-yas 'company-go) company-backends)))))
-
-;; Local Golang playground for short snippes
+;; Local Golang playground for short snippets
 (use-package go-playground
-  :diminish go-playground-mode
-  :commands go-playground-mode)
+  :diminish)
 
 (provide 'init-go)
 

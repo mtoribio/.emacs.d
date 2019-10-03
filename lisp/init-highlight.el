@@ -1,6 +1,6 @@
 ;; init-highlight.el --- Initialize highlighting configurations.	-*- lexical-binding: t -*-
 
-;; Copyright (C) 2018 Vincent Zhang
+;; Copyright (C) 2019 Vincent Zhang
 
 ;; Author: Vincent Zhang <seagle0128@gmail.com>
 ;; URL: https://github.com/seagle0128/.emacs.d
@@ -30,14 +30,36 @@
 
 ;;; Code:
 
+(eval-when-compile
+  (require 'init-const))
+
 ;; Highlight the current line
 (use-package hl-line
   :ensure nil
   :hook (after-init . global-hl-line-mode))
 
+;; Highlight matching parens
+(use-package paren
+  :ensure nil
+  :hook (after-init . show-paren-mode)
+  :config (setq show-paren-when-point-inside-paren t
+                show-paren-when-point-in-periphery t))
+
 ;; Highlight symbols
 (use-package symbol-overlay
-  :diminish symbol-overlay-mode
+  :diminish
+  :functions (turn-off-symbol-overlay
+              turn-on-symbol-overlay)
+  :custom-face
+  (symbol-overlay-default-face ((t (:inherit 'region))))
+  (symbol-overlay-face-1 ((t (:inherit 'highlight))))
+  (symbol-overlay-face-2 ((t (:inherit 'font-lock-builtin-face :inverse-video t))))
+  (symbol-overlay-face-3 ((t (:inherit 'warning :inverse-video t))))
+  (symbol-overlay-face-4 ((t (:inherit 'font-lock-constant-face :inverse-video t))))
+  (symbol-overlay-face-5 ((t (:inherit 'error :inverse-video t))))
+  (symbol-overlay-face-6 ((t (:inherit 'dired-mark :inverse-video t :bold nil))))
+  (symbol-overlay-face-7 ((t (:inherit 'success :inverse-video t))))
+  (symbol-overlay-face-8 ((t (:inherit 'dired-symlink :inverse-video t :bold nil))))
   :bind (("M-i" . symbol-overlay-put)
          ("M-n" . symbol-overlay-jump-next)
          ("M-p" . symbol-overlay-jump-prev)
@@ -45,28 +67,99 @@
          ("M-P" . symbol-overlay-switch-backward)
          ("M-C" . symbol-overlay-remove-all)
          ([M-f3] . symbol-overlay-remove-all))
-  :hook (prog-mode . symbol-overlay-mode))
-
-;; Highlight matching paren
-(use-package paren
-  :ensure nil
-  :hook (after-init . show-paren-mode)
+  :hook ((prog-mode . symbol-overlay-mode)
+         (iedit-mode . turn-off-symbol-overlay)
+         (iedit-mode-end . turn-on-symbol-overlay))
+  :init (setq symbol-overlay-idle-time 0.1)
   :config
-  (setq show-paren-when-point-inside-paren t)
-  (setq show-paren-when-point-in-periphery t))
+  ;; Disable symbol highlighting while selecting
+  (defun turn-off-symbol-overlay (&rest _)
+    "Turn off symbol highlighting."
+    (interactive)
+    (symbol-overlay-mode -1))
+  (advice-add #'set-mark :after #'turn-off-symbol-overlay)
+
+  (defun turn-on-symbol-overlay (&rest _)
+    "Turn on symbol highlighting."
+    (interactive)
+    (when (derived-mode-p 'prog-mode)
+      (symbol-overlay-mode 1)))
+  (advice-add #'deactivate-mark :after #'turn-on-symbol-overlay))
 
 ;; Highlight indentions
 (when (display-graphic-p)
   (use-package highlight-indent-guides
+    :diminish
+    :functions (ivy-cleanup-string
+                my-ivy-cleanup-indentation)
+    :commands highlight-indent-guides--highlighter-default
+    :functions my-indent-guides-for-all-but-first-column
     :hook (prog-mode . highlight-indent-guides-mode)
+    :init (setq highlight-indent-guides-method 'character
+                highlight-indent-guides-responsive 'top)
     :config
-    (setq highlight-indent-guides-method 'character)
-    (setq highlight-indent-guides-responsive t)))
+    ;; Don't display indentations while editing with `company'
+    (with-eval-after-load 'company
+      (add-hook 'company-completion-started-hook
+                (lambda (&rest _)
+                  "Trun off indentation highlighting."
+                  (when highlight-indent-guides-mode
+                    (highlight-indent-guides-mode -1))))
+      (add-hook 'company-after-completion-hook
+                (lambda (&rest _)
+                  "Trun on indentation highlighting."
+                  (when (and (derived-mode-p 'prog-mode)
+                             (not highlight-indent-guides-mode))
+                    (highlight-indent-guides-mode 1)))))
+
+    ;; Don't display first level of indentation
+    (defun my-indent-guides-for-all-but-first-column (level responsive display)
+      (unless (< level 1)
+        (highlight-indent-guides--highlighter-default level responsive display)))
+    (setq highlight-indent-guides-highlighter-function
+          #'my-indent-guides-for-all-but-first-column)
+
+    ;; Don't display indentations in `swiper'
+    ;; https://github.com/DarthFennec/highlight-indent-guides/issues/40
+    (with-eval-after-load 'ivy
+      (defun my-ivy-cleanup-indentation (str)
+        "Clean up indentation highlighting in ivy minibuffer."
+        (let ((pos 0)
+              (next 0)
+              (limit (length str))
+              (prop 'highlight-indent-guides-prop))
+          (while (and pos next)
+            (setq next (text-property-not-all pos limit prop nil str))
+            (when next
+              (setq pos (text-property-any next limit prop nil str))
+              (ignore-errors
+                (remove-text-properties next pos '(display nil face nil) str))))))
+      (advice-add #'ivy-cleanup-string :after #'my-ivy-cleanup-indentation))))
 
 ;; Colorize color names in buffers
 (use-package rainbow-mode
-  :diminish rainbow-mode
-  :hook ((emacs-lisp-mode web-mode css-mode) . rainbow-mode))
+  :diminish
+  :functions (my-rainbow-colorize-match my-rainbow-clear-overlays)
+  :commands (rainbow-x-color-luminance rainbow-colorize-match rainbow-turn-off)
+  :bind (:map help-mode-map
+         ("w" . rainbow-mode))
+  :hook ((css-mode scss-mode less-css-mode) . rainbow-mode)
+  :config
+  ;; HACK: Use overlay instead of text properties to override `hl-line' faces.
+  ;; @see https://emacs.stackexchange.com/questions/36420
+  (defun my-rainbow-colorize-match (color &optional match)
+    (let* ((match (or match 0))
+           (ov (make-overlay (match-beginning match) (match-end match))))
+      (overlay-put ov 'ovrainbow t)
+      (overlay-put ov 'face `((:foreground ,(if (> 0.5 (rainbow-x-color-luminance color))
+                                                "white" "black"))
+                              (:background ,color)))))
+  (advice-add #'rainbow-colorize-match :override #'my-rainbow-colorize-match)
+
+  (defun my-rainbow-clear-overlays ()
+    "Clear all rainbow overlays."
+    (remove-overlays (point-min) (point-max) 'ovrainbow t))
+  (advice-add #'rainbow-turn-off :after #'my-rainbow-clear-overlays))
 
 ;; Highlight brackets according to their depth
 (use-package rainbow-delimiters
@@ -74,37 +167,47 @@
 
 ;; Highlight TODO and similar keywords in comments and strings
 (use-package hl-todo
-  :custom-face (hl-todo ((t (:box t :bold t))))
   :bind (:map hl-todo-mode-map
-              ([C-f3] . hl-todo-occur)
-              ("C-c t p" . hl-todo-previous)
-              ("C-c t n" . hl-todo-next)
-              ("C-c t o" . hl-todo-occur))
+         ([C-f3] . hl-todo-occur)
+         ("C-c t p" . hl-todo-previous)
+         ("C-c t n" . hl-todo-next)
+         ("C-c t o" . hl-todo-occur))
   :hook (after-init . global-hl-todo-mode)
   :config
-  (dolist (keyword '("BUG" "DEFECT" "ISSUE" "WORKAROUND"))
-    (cl-pushnew `(,keyword . "#cd5c5c") hl-todo-keyword-faces)))
+  (dolist (keyword '("BUG" "DEFECT" "ISSUE"))
+    (cl-pushnew `(,keyword . ,(face-foreground 'error)) hl-todo-keyword-faces))
+  (dolist (keyword '("WORKAROUND" "HACK" "TRICK"))
+    (cl-pushnew `(,keyword . ,(face-foreground 'warning)) hl-todo-keyword-faces)))
 
 ;; Highlight uncommitted changes
 (use-package diff-hl
-  :defines desktop-minor-mode-table
+  :defines (diff-hl-margin-symbols-alist desktop-minor-mode-table)
   :commands diff-hl-magit-post-refresh
-  :custom ((diff-hl-draw-borders nil)
-           (fringes-outside-margins t)
-           (fringe-mode '(4 . 8)))
-  :custom-face
-  (diff-hl-change ((t (:background "DeepSkyBlue"))))
-  (diff-hl-delete ((t (:background "OrangeRed"))))
-  (diff-hl-insert ((t (:background "YellowGreen"))))
+  :functions  my-diff-hl-fringe-bmp-function
+  :custom-face (diff-hl-change ((t (:foreground ,(face-background 'highlight)))))
   :bind (:map diff-hl-command-map
-              ("SPC" . diff-hl-mark-hunk))
+         ("SPC" . diff-hl-mark-hunk))
   :hook ((after-init . global-diff-hl-mode)
          (dired-mode . diff-hl-dired-mode))
   :config
   ;; Highlight on-the-fly
   (diff-hl-flydiff-mode 1)
 
+  ;; Set fringe style
+  (setq-default fringes-outside-margins t)
+
+  (defun my-diff-hl-fringe-bmp-function (_type _pos)
+    "Fringe bitmap function for use as `diff-hl-fringe-bmp-function'."
+    (define-fringe-bitmap 'my-diff-hl-bmp
+      (vector (if sys/macp #b11100000 #b11111100))
+      1 8
+      '(center t)))
+  (setq diff-hl-fringe-bmp-function #'my-diff-hl-fringe-bmp-function)
+
   (unless (display-graphic-p)
+    (setq diff-hl-margin-symbols-alist
+          '((insert . " ") (delete . " ") (change . " ")
+            (unknown . " ") (ignored . " ")))
     ;; Fall back to the display margin since the fringe is unavailable in tty
     (diff-hl-margin-mode 1)
     ;; Avoid restoring `diff-hl-margin-mode'
@@ -118,72 +221,48 @@
 
 ;; Highlight some operations
 (use-package volatile-highlights
-  :diminish volatile-highlights-mode
+  :diminish
   :hook (after-init . volatile-highlights-mode))
 
 ;; Visualize TAB, (HARD) SPACE, NEWLINE
-(use-package whitespace
+;; Pulse current line
+(use-package pulse
   :ensure nil
-  :diminish whitespace-mode
-  :hook ((prog-mode outline-mode conf-mode) . whitespace-mode)
-  :config
-  (setq whitespace-line-column fill-column) ;; limit line length
-  ;; automatically clean up bad whitespace
-  (setq whitespace-action '(auto-cleanup))
-  ;; only show bad whitespace
-  (setq whitespace-style '(face
-                           trailing space-before-tab
-                           indentation empty space-after-tab))
-
-  (with-eval-after-load 'popup
-    ;; advice for whitespace-mode conflict with popup
-    (defvar my-prev-whitespace-mode nil)
-    (make-local-variable 'my-prev-whitespace-mode)
-
-    (defadvice popup-draw (before my-turn-off-whitespace activate compile)
-      "Turn off whitespace mode before showing autocomplete box."
-      (if whitespace-mode
-          (progn
-            (setq my-prev-whitespace-mode t)
-            (whitespace-mode -1))
-        (setq my-prev-whitespace-mode nil)))
-
-    (defadvice popup-delete (after my-restore-whitespace activate compile)
-      "Restore previous whitespace mode when deleting autocomplete box."
-      (if my-prev-whitespace-mode
-          (whitespace-mode 1)))))
-
-;; Flash the current line
-(use-package nav-flash
-  :defines compilation-highlight-overlay
-  :functions windmove-do-window-select
   :preface
-  (defun my-blink-cursor-maybe (orig-fn &rest args)
-    "Blink current line if the window has moved."
-    (ignore-errors
-      (let ((point (save-excursion (goto-char (window-start))
-                                   (point-marker))))
-        (apply orig-fn args)
-        (unless (or (derived-mode-p 'term-mode)
-                    (equal point
-                           (save-excursion (goto-char (window-start))
-                                           (point-marker))))
-          (my-blink-cursor)))))
+  (defun my-pulse-momentary-line (&rest _)
+    "Pulse the current line."
+    (pulse-momentary-highlight-one-line (point) 'next-error))
 
-  (defun my-blink-cursor (&rest _)
-    "Blink current line using `nav-flash'."
-    (interactive)
-    (unless (minibufferp)
-      (nav-flash-show)
-      ;; only show in the current window
-      (overlay-put compilation-highlight-overlay 'window (selected-window))))
-  :hook ((imenu-after-jump switch-window-finish) . my-blink-cursor)
+  (defun my-pulse-momentary (&rest _)
+    "Pulse the current line."
+    (if (fboundp 'xref-pulse-momentarily)
+        (xref-pulse-momentarily)
+      (my-pulse-momentary-line)))
+
+  (defun my-recenter-and-pulse(&rest _)
+    "Recenter and pulse the current line."
+    (recenter)
+    (my-pulse-momentary))
+
+  (defun my-recenter-and-pulse-line (&rest _)
+    "Recenter and pulse the current line."
+    (recenter)
+    (my-pulse-momentary-line))
+  :hook (((dumb-jump-after-jump
+           imenu-after-jump) . my-recenter-and-pulse)
+         ((bookmark-after-jump
+           magit-diff-visit-file
+           next-error) . my-recenter-and-pulse-line))
   :init
-  ;; NOTE In :feature jump `recenter' is hooked to a bunch of jumping commands,
-  ;; which will trigger nav-flash.
-  (advice-add #'windmove-do-window-select :around #'my-blink-cursor-maybe)
-  (advice-add #'other-window :around #'my-blink-cursor-maybe)
-  (advice-add #'recenter :around #'my-blink-cursor-maybe))
+  (dolist (cmd '(recenter-top-bottom
+                 other-window ace-window windmove-do-window-select
+                 pager-page-down pager-page-up
+                 symbol-overlay-basic-jump))
+    (advice-add cmd :after #'my-pulse-momentary-line))
+  (dolist (cmd '(pop-to-mark-command
+                 pop-global-mark
+                 goto-last-change))
+    (advice-add cmd :after #'my-recenter-and-pulse)))
 
 (provide 'init-highlight)
 

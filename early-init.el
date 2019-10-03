@@ -1,4 +1,4 @@
-;; init-yasnippet.el --- Initialize yasnippet configurations.	-*- lexical-binding: t -*-
+;;; early-init.el --- Early initialization. -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2019 Vincent Zhang
 
@@ -25,17 +25,25 @@
 
 ;;; Commentary:
 ;;
-;; Yasnippet configurations.
+;; Emacs HEAD (27+) introduces early-init.el, which is run before init.el,
+;; before package and UI initialization happens.
 ;;
 
 ;;; Code:
 
-(use-package yasnippet
-  :diminish yas-minor-mode
-  :hook (after-init . yas-global-mode)
-  :config (use-package yasnippet-snippets))
+;; Defer garbage collection further back in the startup process
+(setq gc-cons-threshold (if (display-graphic-p) 400000000 100000000))
 
-(provide 'init-yasnippet)
+;; Package initialize occurs automatically, before `user-init-file' is
+;; loaded, but after `early-init-file'. We handle package
+;; initialization, so we must prevent Emacs from doing it early!
+(setq package-enable-at-startup nil)
+
+;; Faster to disable these here (before they've been initialized)
+(unless (and (display-graphic-p) (eq system-type 'darwin))
+  (push '(menu-bar-lines . 0) default-frame-alist))
+(push '(tool-bar-lines . 0) default-frame-alist)
+(push '(vertical-scroll-bars) default-frame-alist)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; init-yasnippet.el ends here
+;;; early-init.el ends here

@@ -1,9 +1,9 @@
-;; init-yasnippet.el --- Initialize yasnippet configurations.	-*- lexical-binding: t -*-
+;; init-elixir.el --- Initialize elixir configurations.	-*- lexical-binding: t -*-
 
-;; Copyright (C) 2019 Vincent Zhang
+;; Copyright (C) 2019 N.Ahmet BASTUG
 
-;; Author: Vincent Zhang <seagle0128@gmail.com>
-;; URL: https://github.com/seagle0128/.emacs.d
+;; Author: N.Ahmet BASTUG <bastugn@itu.edu.tr>
+;; URL: https://github.com/kosantosbik/.emacs.d
 
 ;; This file is not part of GNU Emacs.
 ;;
@@ -25,17 +25,29 @@
 
 ;;; Commentary:
 ;;
-;; Yasnippet configurations.
+;; Elixir configurations.
 ;;
 
 ;;; Code:
 
-(use-package yasnippet
-  :diminish yas-minor-mode
-  :hook (after-init . yas-global-mode)
-  :config (use-package yasnippet-snippets))
+(use-package elixir-mode
+  :config
+  (use-package alchemist
+    :hook ((elixir-mode . alchemist-mode)
+           (elixir-mode . alchemist-phoenix-mode))
+    :config
+    (add-hook 'elixir-mode-hook 'alchemist-mode)
+    (add-hook 'elixir-mode-hook 'alchemist-phoenix-mode))
 
-(provide 'init-yasnippet)
+  (use-package flycheck-mix
+    :after flycheck
+    :init (flycheck-mix-setup))
+
+  (use-package flycheck-credo
+    :after flycheck
+    :init (flycheck-credo-setup)))
+
+(provide 'init-elixir)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; init-yasnippet.el ends here
+;;; init-elixir.el ends here

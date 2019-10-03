@@ -1,6 +1,6 @@
 ;; init-ruby.el --- Initialize ruby configurations.	-*- lexical-binding: t -*-
 
-;; Copyright (C) 2018 Vincent Zhang
+;; Copyright (C) 2019 Vincent Zhang
 
 ;; Author: Vincent Zhang <seagle0128@gmail.com>
 ;; URL: https://github.com/seagle0128/.emacs.d
@@ -38,16 +38,6 @@
   :mode "\\.\\(rb\\|rake\\|\\gemspec\\|ru\\|\\(Rake\\|Gem\\|Guard\\|Cap\\|Vagrant\\)file\\)$"
   :interpreter "ruby"
   :config
-  ;; Code navigation, documentation lookup and completion for Ruby
-  (unless centaur-lsp
-    (use-package robe
-      :diminish robe-mode
-      :defines company-backends
-      :hook (ruby-mode . robe-mode)
-      :config
-      (with-eval-after-load 'company
-        (cl-pushnew (company-backend-with-yas 'company-robe) company-backends))))
-
   ;; Ruby refactoring helpers
   (use-package ruby-refactor
     :diminish ruby-refactor-mode
@@ -58,7 +48,14 @@
     :hook ((ruby-mode . inf-ruby-minor-mode)
            (compilation-filter . inf-ruby-auto-enter)))
 
+  ;; Rails
+  (use-package projectile-rails
+    :after projectile
+    :diminish projectile-rails-mode
+    :hook (projectile-mode . projectile-rails-global-mode))
+
   ;; Rubocop
+  ;; Install: gem install rubocop
   (use-package rubocop
     :diminish rubocop-mode
     :hook (ruby-mode . rubocop-mode))
@@ -70,9 +67,6 @@
     :hook (dired-mode . rspec-dired-mode)
     :config (with-eval-after-load 'yasnippet
               (rspec-install-snippets)))
-
-  ;; Coverage for SimpleCov
-  (use-package coverage)
 
   ;; Yet Another RI interface for Emacs
   (use-package yari

@@ -1,6 +1,6 @@
-;; init-lsp.el --- Initialize lsp configurations.	-*- lexical-binding: t -*-
+;; init-lsp.el --- Initialize LSP configurations.	-*- lexical-binding: t -*-
 
-;; Copyright (C) 2018 Vincent Zhang
+;; Copyright (C) 2019 Vincent Zhang
 
 ;; Author: Vincent Zhang <seagle0128@gmail.com>
 ;; URL: https://github.com/seagle0128/.emacs.d
@@ -25,134 +25,173 @@
 
 ;;; Commentary:
 ;;
-;; Language Server Protocol configurations.
+;; Language Server Protocol (LSP) configurations.
 ;;
 
 ;;; Code:
 
-;; Emacs client for the Language Server Protocol
-;; https://github.com/emacs-lsp/lsp-mode
-(use-package lsp-mode
-  :diminish lsp-mode
-  :config
-  (setq lsp-inhibit-message t)
-  (setq lsp-message-project-root-warning t)
-  (setq create-lockfiles nil)
+(eval-when-compile
+  (require 'init-custom))
 
-  ;; Restart server/workspace in case the lsp server exits unexpectedly.
-  ;; https://emacs-china.org/t/topic/6392
-  (defun restart-lsp-server ()
-    "Restart LSP server."
-    (interactive)
-    (lsp-restart-workspace)
-    (revert-buffer t t)
-    (message "LSP server restarted."))
+(pcase centaur-lsp
+  ('eglot
+   (use-package eglot
+     :hook (prog-mode . eglot-ensure)))
 
-  (require 'lsp-imenu)
-  (add-hook 'lsp-after-open-hook 'lsp-enable-imenu))
+  ('lsp-mode
+   ;; Emacs client for the Language Server Protocol
+   ;; https://github.com/emacs-lsp/lsp-mode#supported-languages
+   (use-package lsp-mode
+     :diminish lsp-mode
+     :hook (prog-mode . lsp-deferred)
+     :bind (:map lsp-mode-map
+            ("C-c C-d" . lsp-describe-thing-at-point))
+     :init (setq lsp-auto-guess-root t       ; Detect project root
+                 lsp-prefer-flymake nil      ; Use lsp-ui and flycheck
+                 flymake-fringe-indicator-position 'right-fringe)
+     :config
+     ;; Configure LSP clients
+     (use-package lsp-clients
+       :ensure nil
+       :init (setq lsp-clients-python-library-directories '("/usr/local/" "/usr/"))))
 
-(use-package lsp-ui
-  :bind (:map lsp-ui-mode-map
-              ([remap xref-find-definitions] . lsp-ui-peek-find-definitions)
-              ([remap xref-find-references] . lsp-ui-peek-find-references))
-  :hook (lsp-mode . lsp-ui-mode)
-  :init (setq scroll-margin 0))
+   (use-package lsp-ui
+     :functions my-lsp-ui-imenu-hide-mode-line
+     :commands lsp-ui-doc-hide
+     :custom-face
+     (lsp-ui-doc-background ((t (:background ,(face-background 'tooltip)))))
+     (lsp-ui-sideline-code-action ((t (:inherit warning))))
+     :bind (:map lsp-ui-mode-map
+            ([remap xref-find-definitions] . lsp-ui-peek-find-definitions)
+            ([remap xref-find-references] . lsp-ui-peek-find-references)
+            ("C-c u" . lsp-ui-imenu))
+     :init (setq lsp-ui-doc-enable t
+                 lsp-ui-doc-use-webkit nil
+                 lsp-ui-doc-delay 0.5
+                 lsp-ui-doc-include-signature t
+                 lsp-ui-doc-position 'top
+                 lsp-ui-doc-border (face-foreground 'default)
 
-(use-package company-lsp
-  :after company
-  :defines company-backends
-  :functions company-backend-with-yas
-  :init (cl-pushnew (company-backend-with-yas 'company-lsp) company-backends))
+                 lsp-ui-sideline-enable t
+                 lsp-ui-sideline-show-hover nil
+                 lsp-ui-sideline-show-diagnostics nil
+                 lsp-ui-sideline-ignore-duplicate t
 
-;; Go support for lsp-mode using Sourcegraph's Go Language Server
-;; Install: go get -u github.com/sourcegraph/go-langserver
-(use-package lsp-go
-  :commands lsp-go-enable
-  :hook (go-mode . lsp-go-enable))
+                 lsp-eldoc-enable-hover nil)
+     :config
+     (add-to-list 'lsp-ui-doc-frame-parameters '(right-fringe . 8))
 
-;; Python support for lsp-mode using pyls.
-;; Install: pip install python-language-server
-(use-package lsp-python
-  :commands lsp-python-enable
-  :hook (python-mode . lsp-python-enable))
+     ;; `C-g'to close doc
+     (advice-add #'keyboard-quit :before #'lsp-ui-doc-hide)
 
-;; Ruby support for lsp-mode using the solargraph gem.
-;; Install: gem install solargraph
-(use-package lsp-ruby
-  :commands lsp-ruby-enable
-  :hook (ruby-mode . lsp-ruby-enable))
+     ;; Reset `lsp-ui-doc-background' after loading theme
+     (add-hook 'after-load-theme-hook
+               (lambda ()
+                 (setq lsp-ui-doc-border (face-foreground 'default))
+                 (set-face-background 'lsp-ui-doc-background
+                                      (face-background 'tooltip))))
 
-;; Javascript, Typescript and Flow support for lsp-mode
-;; Install: npm i -g javascript-typescript-langserver
-(use-package lsp-javascript-typescript
-  :commands lsp-javascript-typescript-enable
-  :hook ((typescript-mode js2-mode) . lsp-javascript-typescript-enable))
+     ;; WORKAROUND Hide mode-line of the lsp-ui-imenu buffer
+     ;; @see https://github.com/emacs-lsp/lsp-ui/issues/243
+     (defun my-lsp-ui-imenu-hide-mode-line ()
+       "Hide the mode-line in lsp-ui-imenu."
+       (setq mode-line-format nil))
+     (advice-add #'lsp-ui-imenu :after #'my-lsp-ui-imenu-hide-mode-line))
 
-;; CSS, LESS, and SCSS/SASS support for lsp-mode using vscode-css-languageserver-bin
-;; Install: npm i -g vscode-css-languageserver-bin
-(use-package lsp-css
-  :commands (lsp-css-enable
-             lsp-less-enable
-             lsp-sass-enable
-             lsp-scss-enable)
-  :hook ((css-mode . lsp-css-enable)
-         (less-mode . lsp-less-enable)
-         (sass-mode . lsp-sass-enable)
-         (scss-mode . lsp-scss-enable)))
+   (use-package company-lsp
+     :init (setq company-lsp-cache-candidates 'auto))
 
-;; HTML support for lsp-mode using vscode-html-languageserver-bin
-;; Install: npm i -g vscode-html-languageserver-bin
-(use-package lsp-html
-  :commands lsp-html-enable
-  :hook (html-mode . lsp-html-enable))
+   ;; Debug
+   (use-package dap-mode
+     :diminish
+     :functions dap-hydra/nil
+     :bind (:map lsp-mode-map
+            ("<f5>" . dap-debug)
+            ("M-<f5>" . dap-hydra))
+     :hook ((after-init . dap-mode)
+            (dap-mode . dap-ui-mode)
+            (dap-session-created . (lambda (&_rest) (dap-hydra)))
+            (dap-terminated . (lambda (&_rest) (dap-hydra/nil)))
 
-;; PHP support for lsp-mode
-;; Install: composer require felixfbecker/language-server
-;; composer run-script --working-dir=vendor/felixfbecker/language-server parse-stubs
-(use-package lsp-php
-  :commands lsp-php-enable
-  :hook (php-mode . lsp-php-enable))
+            (python-mode . (lambda () (require 'dap-python)))
+            (ruby-mode . (lambda () (require 'dap-ruby)))
+            (go-mode . (lambda () (require 'dap-go)))
+            (java-mode . (lambda () (require 'dap-java)))
+            ((c-mode c++-mode objc-mode swift) . (lambda () (require 'dap-lldb)))
+            (php-mode . (lambda () (require 'dap-php)))
+            (elixir-mode . (lambda () (require 'dap-elixir)))
+            ((js-mode js2-mode) . (lambda () (require 'dap-chrome)))))
 
-;; Bash support for lsp-mode using Mads Hartmann's bash-language-server
-;; Install: npm i -g bash-language-server
-;; Require Python2.5+, use --python to specify.
-(use-package lsp-sh
-  :ensure nil
-  :after lsp-mode
-  :commands lsp-sh-enable
-  :hook (sh-mode . lsp-sh-enable)
-  :init
-  (lsp-define-stdio-client lsp-sh
-                           "sh"
-                           #'(lambda () default-directory)
-                           '("bash-language-server" "start")))
+   ;; `lsp-mode' and `treemacs' integration.
+   (when emacs/>=25.2p
+     (use-package lsp-treemacs
+       :bind (:map lsp-mode-map
+              ("M-9" . lsp-treemacs-errors-list))))
 
-;; C/C++/Objective-C language server support for lsp-mode using clang
-;; Install: brew install cquery or download binary from https://github.com/cquery-project/cquery/releases.
-(use-package cquery
-  :defines projectile-project-root-files-top-down-recurring
-  :commands lsp-cquery-enable
-  :hook ((c-mode c++-mode objc-mode) . lsp-cquery-enable)
-  :config
-  (with-eval-after-load 'projectile
-    (setq projectile-project-root-files-top-down-recurring
-          (append '("compile_commands.json"
-                    ".cquery")
-                  projectile-project-root-files-top-down-recurring))))
+   ;; Microsoft python-language-server support
+   (use-package lsp-python-ms
+     :hook (python-mode . (lambda ()
+                            (require 'lsp-python-ms)
+                            (lsp-deferred))))
 
-;; Rust support for lsp-mode using the Rust Language Server.
-;; Install: rustup component add rls-preview rust-analysis rust-src
-(use-package lsp-rust
-  :commands lsp-rust-enable
-  :hook (rust-mode . lsp-rust-enable))
+   ;; C/C++/Objective-C support
+   (use-package ccls
+     :defines projectile-project-root-files-top-down-recurring
+     :hook ((c-mode c++-mode objc-mode cuda-mode) . (lambda ()
+                                                      (require 'ccls)
+                                                      (lsp-deferred)))
+     :config
+     (with-eval-after-load 'projectile
+       (setq projectile-project-root-files-top-down-recurring
+             (append '("compile_commands.json"
+                       ".ccls")
+                     projectile-project-root-files-top-down-recurring))))
 
-;; Java support for lsp-mode using the Eclipse JDT Language Server.
-;; Install:
-;; wget http://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz
-;; tar jdt-language-server-latest.tar.gz -C ~/.emacs.d/eclipse.jdt.ls/server/
-(use-package lsp-java
-  :commands lsp-java-enable
-  :hook (java-mode . lsp-java-enable))
+   ;; Java support
+   (use-package lsp-java
+     :hook (java-mode . (lambda ()
+                          (require 'lsp-java)
+                          (lsp-deferred))))))
+
+(when centaur-lsp
+  ;; Enable LSP in org babel
+  ;; https://github.com/emacs-lsp/lsp-mode/issues/377
+  (cl-defmacro lsp-org-babel-enbale (lang)
+    "Support LANG in org source code block."
+    (cl-check-type lang stringp)
+    (let* ((edit-pre (intern (format "org-babel-edit-prep:%s" lang)))
+           (intern-pre (intern (format "lsp--%s" (symbol-name edit-pre)))))
+      `(progn
+         (defun ,intern-pre (info)
+           (let ((filename (or (->> info caddr (alist-get :file))
+                               buffer-file-name)))
+             (setq buffer-file-name filename)
+             (pcase centaur-lsp
+               ('eglot
+                (and (fboundp 'eglot) (eglot)))
+               ('lsp-mode
+                (and (fboundp 'lsp)
+                     ;; `lsp-auto-guess-root' MUST be non-nil.
+                     (setq lsp-buffer-uri (lsp--path-to-uri filename))
+                     (lsp-deferred))))))
+         (put ',intern-pre 'function-documentation
+              (format "Enable `%s' in the buffer of org source block (%s)."
+                      centaur-lsp (upcase ,lang)))
+
+         (if (fboundp ',edit-pre)
+             (advice-add ',edit-pre :after ',intern-pre)
+           (progn
+             (defun ,edit-pre (info)
+               (,intern-pre info))
+             (put ',edit-pre 'function-documentation
+                  (format "Prepare local buffer environment for org source block (%s)."
+                          (upcase ,lang))))))))
+
+  (defvar org-babel-lang-list
+    '("go" "python" "ipython" "ruby" "js" "css" "sass" "C" "rust" "java"))
+  (add-to-list 'org-babel-lang-list (if emacs/>=26p "shell" "sh"))
+  (dolist (lang org-babel-lang-list)
+    (eval `(lsp-org-babel-enbale ,lang))))
 
 (provide 'init-lsp)
 

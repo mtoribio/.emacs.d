@@ -1,6 +1,6 @@
 ;; init-prog.el --- Initialize programming configurations.	-*- lexical-binding: t -*-
 
-;; Copyright (C) 2018 Vincent Zhang
+;; Copyright (C) 2019 Vincent Zhang
 
 ;; Author: Vincent Zhang <seagle0128@gmail.com>
 ;; URL: https://github.com/seagle0128/.emacs.d
@@ -30,60 +30,86 @@
 
 ;;; Code:
 
+
 ;; Prettify Symbols
 ;; e.g. display “lambda” as “λ”
 (use-package prog-mode
   :ensure nil
-  :hook ((after-init . global-prettify-symbols-mode)
-         (emacs-lisp-mode . (lambda () (push '("<=" . ?≤) prettify-symbols-alist)))))
+  :hook (prog-mode . prettify-symbols-mode)
+  :init
+  (setq-default prettify-symbols-alist
+                '(("lambda" . ?λ)
+                  ("<-" . ?←)
+                  ("->" . ?→)
+                  ("->>" . ?↠)
+                  ("=>" . ?⇒)
+                  ("map" . ?↦)
+                  ("/=" . ?≠)
+                  ("!=" . ?≠)
+                  ("==" . ?≡)
+                  ("<=" . ?≤)
+                  (">=" . ?≥)
+                  ("=<<" . (?= (Br . Bl) ?≪))
+                  (">>=" . (?≫ (Br . Bl) ?=))
+                  ("<=<" . ?↢)
+                  (">=>" . ?↣)
+                  ("&&" . ?∧)
+                  ("||" . ?∨)
+                  ("not" . ?¬)))
+  (setq prettify-symbols-unprettify-at-point 'right-edge))
 
-;; Jump to definition via `ag'/`rg'/`grep'
+;; Jump to definition
 (use-package dumb-jump
-  :functions dumb-jump-hydra/body
-  :bind (("M-g o" . dumb-jump-go-other-window)
+  :pretty-hydra
+  ((:title (pretty-hydra-title "Dump Jump" 'faicon "anchor")
+    :color blue :quit-key "q")
+   ("Jump"
+    (("j" dumb-jump-go "Go")
+     ("o" dumb-jump-go-other-window "Go other window")
+     ("e" dumb-jump-go-prefer-external "Go external")
+     ("x" dumb-jump-go-prefer-external-other-window "Go external other window"))
+    "Other"
+    (("i" dumb-jump-go-prompt "Prompt")
+     ("l" dumb-jump-quick-look "Quick look")
+     ("b" dumb-jump-back "Back"))))
+  :bind (:map dumb-jump-mode-map
+         ("M-g o" . dumb-jump-go-other-window)
          ("M-g j" . dumb-jump-go)
          ("M-g i" . dumb-jump-go-prompt)
          ("M-g x" . dumb-jump-go-prefer-external)
-         ("M-g z" . dumb-jump-go-prefer-external-other-window))
+         ("M-g z" . dumb-jump-go-prefer-external-other-window)
+         ("C-M-j" . dumb-jump-hydra/body))
   :hook (after-init . dumb-jump-mode)
   :config
-  (setq dumb-jump-prefer-searcher 'rg)
-  (with-eval-after-load 'ivy
-    (setq dumb-jump-selector 'ivy))
+  (setq dumb-jump-prefer-searcher 'rg
+        dumb-jump-selector 'ivy))
 
-  (with-eval-after-load 'hydra
-    (defhydra dumb-jump-hydra (:color blue :columns 3)
-      "Dumb Jump"
-      ("j" dumb-jump-go "Go")
-      ("o" dumb-jump-go-other-window "Other window")
-      ("e" dumb-jump-go-prefer-external "Go external")
-      ("x" dumb-jump-go-prefer-external-other-window "Go external other window")
-      ("i" dumb-jump-go-prompt "Prompt")
-      ("l" dumb-jump-quick-look "Quick look")
-      ("b" dumb-jump-back "Back"))
-    (bind-key "C-M-j" #'dumb-jump-hydra/body dumb-jump-mode-map)))
+(use-package editorconfig
+  :diminish editorconfig-mode
+  :hook (after-init . editorconfig-mode))
+
+;; Run commands quickly
+(use-package quickrun
+  :bind (("C-<f5>" . quickrun)
+         ("C-c x" . quickrun)))
+
+(use-package cask-mode)
+(use-package csharp-mode)
+(use-package csv-mode)
+(use-package dockerfile-mode)
+(use-package lua-mode)
+(use-package powershell)
+(use-package rmsbolt)                   ; A compiler output viewer
+(use-package swift-mode)
+(use-package vimrc-mode)
 
 (use-package nxml-mode
   :ensure nil
   :mode (("\\.xaml$" . xml-mode)))
 
-(use-package quickrun
-  :bind (("<f7>" . quickrun)
-         ("C-c x" . quickrun)))
-
-(use-package cask-mode)
-(use-package csharp-mode)
-(use-package dockerfile-mode)
-(use-package powershell)
-(use-package vimrc-mode)
-
 ;; New `conf-toml-mode' in Emacs 26
 (unless (fboundp 'conf-toml-mode)
   (use-package toml-mode))
-
-(use-package editorconfig
-  :diminish editorconfig-mode
-  :hook (after-init . editorconfig-mode))
 
 ;; Batch Mode eXtras
 (use-package bmx-mode
@@ -91,25 +117,11 @@
   :diminish bmx-mode
   :hook (after-init . bmx-mode-setup-defaults))
 
+;; Fish shell
 (use-package fish-mode
   :hook (fish-mode . (lambda ()
                        (add-hook 'before-save-hook
                                  #'fish_indent-before-save))))
-
-(use-package swift-mode
-  :config
-  (use-package flycheck-swift
-    :after flycheck
-    :commands flycheck-swift-setup
-    :init (flycheck-swift-setup)))
-
-(use-package rust-mode
-  :config (setq rust-format-on-save t))
-
-(use-package robot-mode
-  :ensure nil
-  :commands robot-mode
-  :mode "\\.robot\\'")
 
 (provide 'init-prog)
 

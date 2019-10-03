@@ -1,6 +1,6 @@
 ;; init-c.el --- Initialize c configurations.	-*- lexical-binding: t -*-
 
-;; Copyright (C) 2018 Vincent Zhang
+;; Copyright (C) 2019 Vincent Zhang
 
 ;; Author: Vincent Zhang <seagle0128@gmail.com>
 ;; URL: https://github.com/seagle0128/.emacs.d
@@ -37,7 +37,7 @@
 (use-package cc-mode
   :ensure nil
   :bind (:map c-mode-base-map
-              ("C-c c" . compile))
+         ("C-c c" . compile))
   :hook (c-mode-common . (lambda ()
                            (c-set-style "bsd")
                            (setq tab-width 4)
@@ -45,44 +45,7 @@
   :config
   (use-package modern-cpp-font-lock
     :diminish
-    :init (modern-c++-font-lock-global-mode t))
-
-  (unless centaur-lsp
-    (use-package irony
-      :defines (irony-mode-map irony-server-w32-pipe-buffer-size)
-      :hook (((c-mode c++-mode objc-mode) . irony-mode)
-             (irony-mode . irony-cdb-autosetup-compile-options))
-      :config
-      ;; Windows performance tweaks
-      (when (boundp 'w32-pipe-read-delay)
-        (setq w32-pipe-read-delay 0))
-      ;; Set the buffer size to 64K on Windows (from the original 4K)
-      (when (boundp 'w32-pipe-buffer-size)
-        (setq irony-server-w32-pipe-buffer-size (* 64 1024)))
-
-      (with-eval-after-load 'counsel
-        (bind-keys :map irony-mode-map
-                   ([remap completion-at-point] . counsel-irony)
-                   ([remap complete-symbol] . counsel-irony)))
-
-      (use-package irony-eldoc
-        :hook (irony-mode . irony-eldoc))
-
-      (with-eval-after-load 'company
-        (use-package company-irony
-          :init (cl-pushnew (company-backend-with-yas 'company-irony) company-backends))
-        (use-package company-irony-c-headers
-          :init (cl-pushnew (company-backend-with-yas 'company-irony-c-headers) company-backends)))
-
-      (with-eval-after-load 'flycheck
-        (use-package flycheck-irony
-          :hook (flycheck-mode . flycheck-irony-setup))))
-
-    ;; Company mode backend for C/C++ header files
-    (with-eval-after-load 'company
-      (use-package company-c-headers
-        :functions company-backend-with-yas
-        :init (cl-pushnew (company-backend-with-yas 'company-c-headers) company-backends)))))
+    :init (modern-c++-font-lock-global-mode t)))
 
 (provide 'init-c)
 
